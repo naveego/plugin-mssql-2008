@@ -1,11 +1,11 @@
 {
-  "id": "pub-mssql",
+  "id": "plugin-mssql-2008",
   "displayName": "Microsoft SQL Server 2008",
   "description": "Publisher which pulls data from an MS SQL Server 2008 instance.",
   "version": "1.0.0",
   "apiVersion": "2",
   "iconFile": "icon.png",
-  "executable": "plugin-pub-mssql",
+  "executable": "plugin-mssql-2008",
   "kind": "publisher",
   "os": "$GOOS",
   "arch": "$GOARCH",
