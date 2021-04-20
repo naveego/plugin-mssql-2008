@@ -2,12 +2,10 @@ package internal
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"github.com/hashicorp/go-hclog"
 	"github.com/naveego/plugin-pub-mssql/internal/meta"
 	"github.com/naveego/plugin-pub-mssql/internal/pub"
-	"github.com/naveego/plugin-pub-mssql/pkg/sqlstructs"
 	"github.com/pkg/errors"
 	"sort"
 	"strings"
@@ -249,11 +247,7 @@ func makeDescribeResultSetFromMetaSchema(metaSchema *meta.Schema)([]describeResu
 func describeResultSet(session *OpSession, query string) ([]describeResult, error) {
 	//metaQuery := " @query, @params= N'', @browse_information_mode=1"
 
-	rows, err := session.DB.Query("sp_describe_first_result_set",
-		sql.Named("query", query),
-		sql.Named("params",""),
-		sql.Named("browse_information_mode",1),
-	)
+	rows, err := session.DB.Query(query)
 
 	if err != nil {
 
@@ -269,9 +263,53 @@ func describeResultSet(session *OpSession, query string) ([]describeResult, erro
 	metadata := make([]describeResult, 0, 0)
 
 	defer rows.Close()
-	err = sqlstructs.UnmarshalRows(rows, &metadata)
+	//err = sqlstructs.UnmarshalRows(rows, &metadata)
+	//if err != nil {
+	//	return nil, errors.Errorf("error parsing metadata for query %q: %s", query, err)
+	//}
+
+	columnTypes, err := rows.ColumnTypes()
 	if err != nil {
-		return nil, errors.Errorf("error parsing metadata for query %q: %s", query, err)
+
+		rows, betterErr := session.DB.Query(query)
+		if betterErr == nil {
+			rows.Close()
+			return nil, errors.Errorf("unhelpful error returned by MSSQL when getting metadata for query %q: %s", query, err)
+		} else {
+			return nil, errors.Errorf("error when getting metadata for query %q: %s", query, betterErr)
+		}
+	}
+
+	for _, ct := range columnTypes {
+		dr := describeResult{
+			IsHidden:          false,
+			Name:              ct.Name(),
+			SystemTypeName:    "",
+			IsNullable:        true,
+			IsPartOfUniqueKey: false,
+			MaxLength:         0,
+		}
+
+		if n, ok := ct.Nullable(); ok {
+			dr.IsNullable = n
+		}
+
+		dt := ct.DatabaseTypeName()
+		dr.SystemTypeName = strings.ToLower(dt)
+
+		if dr.SystemTypeName == "decimal" {
+			if p, s, ok := ct.DecimalSize(); ok {
+				dr.SystemTypeName = fmt.Sprintf("%s(%d,%d)", dr.SystemTypeName, p, s)
+			}
+		}
+
+		if l, ok := ct.Length(); ok {
+			dr.MaxLength = l
+
+			dr.SystemTypeName = fmt.Sprintf("%s(%d)", dr.SystemTypeName, dr.MaxLength)
+		}
+
+		metadata = append(metadata, dr)
 	}
 
 	return metadata, nil

@@ -1,8 +1,8 @@
 {
   "id": "pub-mssql",
-  "displayName": "Microsoft SQL Server Publisher",
-  "description": "Publisher which pulls data from an MS SQL Server instance.",
-  "version": "3.1.6",
+  "displayName": "Microsoft SQL Server 2008",
+  "description": "Publisher which pulls data from an MS SQL Server 2008 instance.",
+  "version": "1.0.0",
   "apiVersion": "2",
   "iconFile": "icon.png",
   "executable": "plugin-pub-mssql",
