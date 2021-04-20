@@ -1,0 +1,99 @@
+{
+  "id": "pub-mssql",
+  "displayName": "Microsoft SQL Server Publisher",
+  "description": "Publisher which pulls data from an MS SQL Server instance.",
+  "version": "3.1.6",
+  "apiVersion": "2",
+  "iconFile": "icon.png",
+  "executable": "plugin-pub-mssql",
+  "kind": "publisher",
+  "os": "$GOOS",
+  "arch": "$GOARCH",
+  "canConfigure": true,
+  "canProduceMultipleSchemas": true,
+  "canAcceptQueryBasedSchemas": true,
+  "canConfigureRealTime": true,
+  "canConfigureWrite": true,
+  "canConfigureReplication": true,
+  "canWriteReplication": true,
+  "canWriteBatch": true,
+  "canWrite": true,
+  "querySchema": {
+    "ui": {
+      "ui:widget": "code",
+      "ui:options": {
+        "language": "sql"
+      }
+    },
+    "schema": {
+      "type": "string"
+    }
+  },
+  "configSchema": {
+    "ui": {
+      "ui:order": [
+        "host",
+        "port",
+        "instance",
+        "database",
+        "auth",
+        "username",
+        "password",
+        "advancedSettings"
+      ],
+      "password": {
+        "ui:widget": "password"
+      }
+    },
+    "schema": {
+      "type": "object",
+      "properties": {
+        "host": {
+          "type": "string",
+          "title": "Host",
+          "description": "The hostname of the server"
+        },
+        "port": {
+          "type": "number",
+          "title": "Port",
+          "description": "The port of the SQL Server instance on the server (optional)"
+        },
+        "instance": {
+          "type": "string",
+          "title": "Instance",
+          "description": "The SQL Server instance on the server (optional)"
+        },
+        "database": {
+          "type": "string",
+          "title": "Database"
+        },
+        "auth": {
+          "type": "string",
+          "title": "Authentication",
+          "enum": [
+            "sql",
+            "windows"
+          ]
+        },
+        "username": {
+          "type": "string",
+          "title": "Username"
+        },
+        "password": {
+          "type": "string",
+          "title": "Password"
+        },
+        "advancedSettings": {
+          "type": "string",
+          "title": "Advanced Settings",
+          "description": "Optional config to append to the connection string."
+        }
+      },
+      "required": [
+        "host",
+        "database",
+        "auth"
+      ]
+    }
+  }
+}
