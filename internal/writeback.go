@@ -100,6 +100,7 @@ type ReplicationWriter struct {
 	GoldenMetaSchema *meta.Schema
 	VersionMetaSchema *meta.Schema
 	changes      []string
+	Settings     ReplicationSettings
 }
 
 // gets the ID to use to store replication metadata related to this request.
@@ -211,7 +212,7 @@ order by ID desc`, sqlSchema, constants.ReplicationVersioningTable, replicatedSh
 				return nil, errors.Wrap(err, fmt.Sprintf("dropping golden record table reason: %s", dropGoldenReason))
 			}
 		}
-		if dropVersionReason != "" {
+		if dropVersionReason != "" && previousMetadataSettings.Settings.VersionRecordTableExists() {
 			if err := w.dropTable(session, previousMetadataSettings.Settings.GetNamespacedVersionRecordTable(), dropVersionReason); err != nil {
 				return nil, errors.Wrap(err, fmt.Sprintf("dropping version table reason: %s", dropVersionReason))
 			}
@@ -284,14 +285,14 @@ order by ID desc`, sqlSchema, constants.ReplicationVersioningTable, replicatedSh
 	applyCustomSQLTypes(customGoldenSchema, settings.PropertyConfiguration)
 	applyCustomSQLTypes(customVersionSchema, settings.PropertyConfiguration)
 
-	session.Log.Debug("version schema after", "schema", fmt.Sprintf("%v", customVersionSchema))
 	session.Log.Debug("golden schema after", "schema", fmt.Sprintf("%v", customGoldenSchema))
+	session.Log.Debug("version schema after", "schema", fmt.Sprintf("%v", customVersionSchema))
 
-	if err := w.reconcileSchemas(session, existingVersionSchema, customVersionSchema); err != nil {
-		return nil, errors.Wrap(err, "reconciling version schema")
-	}
-	if err := w.reconcileSchemas(session, existingGoldenSchema, customGoldenSchema); err != nil {
+	if err := w.reconcileSchemas(session, existingGoldenSchema, customGoldenSchema, true); err != nil {
 		return nil, errors.Wrap(err, "reconciling golden schema")
+	}
+	if err := w.reconcileSchemas(session, existingVersionSchema, customVersionSchema, settings.VersionRecordTableExists()); err != nil {
+		return nil, errors.Wrap(err, "reconciling version schema")
 	}
 
 	if len(req.Replication.Versions) > 0 {
@@ -324,7 +325,6 @@ order by ID desc`, sqlSchema, constants.ReplicationVersioningTable, replicatedSh
 		}
 	}
 
-
 	// If we made any changes to the database, insert a new versioning record
 	if len(w.changes) > 0 {
 
@@ -356,6 +356,7 @@ order by ID desc`, sqlSchema, constants.ReplicationVersioningTable, replicatedSh
 	// Capture schemas for use during write.
 	w.GoldenMetaSchema = MetaSchemaFromPubSchema(customGoldenSchema)
 	w.VersionMetaSchema = MetaSchemaFromPubSchema(customVersionSchema)
+	w.Settings = settings
 
 	return w, nil
 }
@@ -365,14 +366,50 @@ func (r *ReplicationWriter) Write(session *OpSession, record *pub.UnmarshalledRe
 
 	// Canonicalize all the fields in the record data and the version data
 	record.Data[constants.GroupID] = record.RecordId
+
+	allGroupPropertiesAreNull := true
+	for k, v := range record.Data{
+		if !constants.NaveegoMetadataColumnNames[k] && v != nil {
+			allGroupPropertiesAreNull = false
+			break
+		}
+	}
+
 	record.Data = r.getCanonicalizedMap(record.Data, r.GoldenIDMap)
+
+	var versions []*pub.UnmarshalledVersionRecord
+
 	for _, version := range record.UnmarshalledVersions {
 		version.Data[constants.GroupID] = record.RecordId
 		version.Data[constants.RecordID] = version.RecordId
 		version.Data[constants.JobID] = version.JobId
 		version.Data[constants.ConnectionID] = version.ConnectionId
 		version.Data[constants.SchemaID] = version.SchemaId
+
+		allVersionPropertiesAreNull := true
+		for k, v := range version.Data{
+			if !constants.NaveegoMetadataColumnNames[k] && v != nil {
+				allVersionPropertiesAreNull = false
+				break
+			}
+		}
+
 		version.Data = r.getCanonicalizedMap(version.Data, r.VersionIDMap)
+
+		// We only want versions which have some non-null data in them
+		if !allVersionPropertiesAreNull {
+			versions = append(versions, version)
+		}
+	}
+
+	// Use the canonicalized and filtered versions
+	record.UnmarshalledVersions = versions
+
+	// If all the properties of the group are nil then it's a delete
+	// whether it was marked that way or not, and it has no versions.
+	if allGroupPropertiesAreNull {
+		record.Action = pub.Record_DELETE
+		record.UnmarshalledVersions = []*pub.UnmarshalledVersionRecord{}
 	}
 
 	// Merge group data
@@ -385,14 +422,16 @@ func (r *ReplicationWriter) Write(session *OpSession, record *pub.UnmarshalledRe
 		return errors.Wrapf(err, "group merge query")
 	}
 
-	// Merge version data
-	_, err = templates.ExecuteCommand(session.DB, templates.ReplicationVersionMerge{
-		Schema:r.VersionMetaSchema,
-		Record:record,
-	})
+	if r.Settings.VersionRecordTableExists() {
+		// Merge version data
+		_, err = templates.ExecuteCommand(session.DB, templates.ReplicationVersionMerge{
+			Schema:r.VersionMetaSchema,
+			Record:record,
+		})
 
-	if err != nil {
-		return errors.Wrapf(err, "version merge query")
+		if err != nil {
+			return errors.Wrapf(err, "version merge query")
+		}
 	}
 
 	return nil
@@ -402,7 +441,7 @@ func (r *ReplicationWriter) recordChange(f string, args ...interface{}) {
 	r.changes = append(r.changes, fmt.Sprintf(f, args...))
 }
 
-func (r *ReplicationWriter) reconcileSchemas(session *OpSession, current *pub.Schema, desired *pub.Schema) error {
+func (r *ReplicationWriter) reconcileSchemas(session *OpSession, current *pub.Schema, desired *pub.Schema, shouldCreate bool) error {
 	session.Log.Debug("reconcile schemas", "current", fmt.Sprintf("%v", current), "desired", fmt.Sprintf("%v", desired))
 	needsDelete  := false
 	needsCreate  := false
@@ -426,7 +465,7 @@ func (r *ReplicationWriter) reconcileSchemas(session *OpSession, current *pub.Sc
 		}
 	}
 
-	if needsCreate {
+	if needsCreate && shouldCreate {
 		session.Log.Debug("creating table", "schema id", desired.Id)
 		if err := r.createTable(session, desired); err != nil {
 			session.Log.Error("Could not create table.", "table", desired, "err", err)

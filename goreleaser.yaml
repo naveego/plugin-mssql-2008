@@ -20,9 +20,9 @@ archives:
   - id: output
     format: zip
     files:
-    - manifest.json
-    - icon.png
-    - LICENSE
+      - manifest.json
+      - icon.png
+      - LICENSE
     replacements:
 
 checksum:
