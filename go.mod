@@ -3,6 +3,7 @@ module github.com/naveego/plugin-pub-mssql
 replace github.com/naveego/dataflow-contracts/plugins => /home/steve/src/github.com/naveego/dataflow-contracts/plugins
 
 require (
+	cloud.google.com/go v0.38.0 // indirect
 	github.com/LK4D4/joincontext v0.0.0-20171026170139-1724345da6d5
 	github.com/Masterminds/semver v1.4.2 // indirect
 	github.com/Masterminds/sprig v2.17.1+incompatible
@@ -17,6 +18,7 @@ require (
 	github.com/fastly/go-utils v0.0.0-20180712184237-d95a45783239 // indirect
 	github.com/go-ini/ini v1.38.2 // indirect
 	github.com/golang/protobuf v1.3.1
+	github.com/google/go-cmp v0.3.0 // indirect
 	github.com/google/uuid v1.1.0
 	github.com/gopherjs/gopherjs v0.0.0-20181103185306-d547d1d9531e // indirect
 	github.com/hashicorp/go-hclog v0.9.0
@@ -46,8 +48,9 @@ require (
 	github.com/spf13/pflag v1.0.1 // indirect
 	github.com/tebeka/strftime v0.1.3 // indirect
 	go.etcd.io/bbolt v1.3.0
-	golang.org/x/crypto v0.0.0-20210415154028-4f45737414dc // indirect
-	golang.org/x/net v0.0.0-20210226172049-e18ecbb05110
+	golang.org/x/crypto v0.0.0-20190506204251-e1dfcc566284 // indirect
+	golang.org/x/net v0.0.0-20190503192946-f4e77d36d62c
+	golang.org/x/sys v0.0.0-20190508100423-12bbe5a7a520 // indirect
 	google.golang.org/genproto v0.0.0-20190502173448-54afdca5d873 // indirect
 	google.golang.org/grpc v1.20.1
 	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
