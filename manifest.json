@@ -9,7 +9,7 @@
   "kind": "publisher",
   "os": "$GOOS",
   "arch": "$GOARCH",
-  "accessGroups": ["vandelay","aunsupport","aondev","affinitydev","affinitytest","affinity", "truckdelay", "augrqa"],
+  "accessGroups": ["vandelay","aunsupport","aondev","affinitydev","affinitytest","affinity", "truckdelay", "boatdelay", "cardelay", "planedelay"],
   "canConfigure": true,
   "canProduceMultipleSchemas": true,
   "canAcceptQueryBasedSchemas": true,
